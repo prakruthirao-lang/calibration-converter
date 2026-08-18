@@ -1,4 +1,3 @@
-cat << 'EOF' > app.py
 import streamlit as st
 import pandas as pd
 import pytesseract
@@ -30,10 +29,8 @@ def extract_text_from_file(file):
 def parse_ocr_text_pairs(lines):
     records = []
     for line in lines:
-        # Match number pairs across lines
         numbers = re.findall(r"[-+]?\d*\.\d+|\d+", line)
         if len(numbers) >= 2:
-            # Group into consecutive pairs (MM, LTRS)
             for i in range(0, len(numbers) - 1, 2):
                 try:
                     mm = float(numbers[i])
@@ -87,4 +84,3 @@ if uploaded_file is not None:
             file_name="converted_calibration.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-EOF
