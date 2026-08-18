@@ -9,7 +9,7 @@ import re
 st.set_page_config(page_title="Direct Image/PDF to Excel Converter", layout="wide")
 st.title("📄 Direct Image/PDF Calibration Table Converter")
 
-st.write("Upload your screenshot or PDF directly — the app will extract table data via OCR and format it into standard **MM** and **LTRS** columns.")
+st.write("Upload your screenshot or PDF directly to extract calibration tables into standard sequential **MM** (0, 1, 2, 3...) and **LTRS** columns.")
 
 uploaded_file = st.file_uploader("Upload Image or PDF File", type=["png", "jpg", "jpeg", "pdf"])
 
@@ -35,41 +35,48 @@ def parse_ocr_text_pairs(lines):
                 try:
                     mm = float(numbers[i])
                     ltrs = float(numbers[i+1])
-                    records.append({'MM': mm, 'LTRS': ltrs})
+                    records.append({'MM': int(mm), 'LTRS': ltrs})
                 except ValueError:
                     continue
     df = pd.DataFrame(records)
     if not df.empty:
         df = df.sort_values('MM').drop_duplicates(subset=['MM']).reset_index(drop=True)
+        df['MM'] = df['MM'].astype(int)
     return df
 
 def parse_ocr_text_grid(lines):
     records = []
     for line in lines:
         numbers = re.findall(r"[-+]?\d*\.\d+|\d+", line)
+        # Needs base MM + at least one value
         if len(numbers) >= 2:
-            base_mm = float(numbers[0])
-            for idx, val in enumerate(numbers[1:10]):
-                try:
+            try:
+                base_mm = float(numbers[0])
+                # Columns 0 to 9 offset (up to 10 entries after base MM)
+                for offset, val in enumerate(numbers[1:11]):
                     ltrs = float(val)
-                    records.append({'MM': int(base_mm) + idx, 'LTRS': ltrs})
-                except ValueError:
-                    continue
+                    records.append({'MM': int(base_mm) + offset, 'LTRS': ltrs})
+            except ValueError:
+                continue
     df = pd.DataFrame(records)
     if not df.empty:
         df = df.sort_values('MM').drop_duplicates(subset=['MM']).reset_index(drop=True)
+        df['MM'] = df['MM'].astype(int)
     return df
 
 if uploaded_file is not None:
     st.info("Extracting text via OCR... Please wait.")
     lines = extract_text_from_file(uploaded_file)
     
-    chart_mode = st.radio("Select Table Format:", ["Side-by-Side Pairs (MM | LTRS)", "Horizontal Matrix Grid (MM in Left Col, 1-9 Headers)"])
+    chart_mode = st.radio(
+        "Select Table Format:", 
+        ["Horizontal Matrix Grid (MM in Left Col, 0-9 Headers)", "Side-by-Side Pairs (MM | LTRS)"]
+    )
     
-    if chart_mode.startswith("Side-by-Side"):
-        clean_df = parse_ocr_text_pairs(lines)
-    else:
+    if chart_mode.startswith("Horizontal Matrix"):
         clean_df = parse_ocr_text_grid(lines)
+    else:
+        clean_df = parse_ocr_text_pairs(lines)
         
     st.write("### Converted Data Output", clean_df)
     
@@ -79,7 +86,7 @@ if uploaded_file is not None:
             clean_df.to_excel(writer, index=False, sheet_name='Calibration_Data')
             
         st.download_button(
-            label="📥 Download Converted Excel File",
+            label="📥 Download Standardized Excel File",
             data=output.getvalue(),
             file_name="converted_calibration.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
